@@ -83,25 +83,25 @@ bool MainWindow::create(HINSTANCE hInstance) {
     CreateWindow(L"BUTTON", L"+ Add Download",
                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                  10, 10, 120, 30, hwnd_,
-                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(IDC_ADD_BTN)),
+                 reinterpret_cast<HMENU>(static_cast<UINT_PTR>(IDC_ADD_BTN)),
                  hInstance, nullptr);
 
-    CreateWindow(L"BUTTON", L"⏸ Pause",
+    CreateWindow(L"BUTTON", L"Pause",
                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                  140, 10, 80, 30, hwnd_,
-                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(IDC_PAUSE_BTN)),
+                 reinterpret_cast<HMENU>(static_cast<UINT_PTR>(IDC_PAUSE_BTN)),
                  hInstance, nullptr);
 
-    CreateWindow(L"BUTTON", L"▶ Resume",
+    CreateWindow(L"BUTTON", L"Resume",
                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                  230, 10, 80, 30, hwnd_,
-                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(IDC_RESUME_BTN)),
+                 reinterpret_cast<HMENU>(static_cast<UINT_PTR>(IDC_RESUME_BTN)),
                  hInstance, nullptr);
 
-    CreateWindow(L"BUTTON", L"🗑 Delete",
+    CreateWindow(L"BUTTON", L"Delete",
                  WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                  320, 10, 80, 30, hwnd_,
-                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(IDC_DELETE_BTN)),
+                 reinterpret_cast<HMENU>(static_cast<UINT_PTR>(IDC_DELETE_BTN)),
                  hInstance, nullptr);
 
     // Show window
@@ -382,3 +382,4 @@ int runMainWindow() {
 }
 
 } // namespace VelocityDM::UI
+ityDM::UI

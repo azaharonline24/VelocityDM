@@ -48,6 +48,7 @@ add_executable(VelocityDMHost
 
 target_include_directories(VelocityDMHost PRIVATE
     ${CMAKE_SOURCE_DIR}/vendor
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 target_link_libraries(VelocityDMHost PRIVATE
