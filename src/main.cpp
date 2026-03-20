@@ -105,7 +105,7 @@ int runCLI(int argc, char* argv[]) {
         // Check if all segments complete
         bool allDone = true;
         for (const auto& seg : downloader.getSegments()) {
-            if (seg.status.load() != SegmentStatus::COMPLETED) {
+            if (seg.getStatus() != SegmentStatus::COMPLETED) {
                 allDone = false;
                 break;
             }

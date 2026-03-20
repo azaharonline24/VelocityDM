@@ -6,18 +6,18 @@
 #include <curl/curl.h>
 #include <iostream>
 #include <algorithm>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace VelocityDM {
 
-// Default thread count
 static constexpr int DEFAULT_THREADS = 8;
-// Minimum file size for multi-threading (1MB)
 static constexpr uint64_t MIN_MULTITHREAD_SIZE = 1024 * 1024;
 
 Downloader::Downloader()
     : totalSize_(0), supportsRange_(false), threadCount_(DEFAULT_THREADS),
-      status_(DownloadStatus::IDLE), running_(false),
-      lastBytesDownloaded_(0) {
+      status_(0), running_(false), lastBytesDownloaded_(0) {
     fileIO_ = std::make_unique<FileIO>();
     curl_global_init(CURL_GLOBAL_ALL);
 }
@@ -28,16 +28,15 @@ Downloader::~Downloader() {
 }
 
 bool Downloader::fetchHeaders(const std::string& url) {
-    status_.store(DownloadStatus::FETCHING_HEADERS);
+    setStatus(DownloadStatus::FETCHING_HEADERS);
     url_ = url;
 
     CURL* curl = curl_easy_init();
     if (!curl) {
-        status_.store(DownloadStatus::ERROR);
+        setStatus(DownloadStatus::ERROR);
         return false;
     }
 
-    // Set HEAD request
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -51,32 +50,20 @@ bool Downloader::fetchHeaders(const std::string& url) {
         std::cerr << "[Downloader] HEAD request failed: "
                   << curl_easy_strerror(res) << std::endl;
         curl_easy_cleanup(curl);
-        status_.store(DownloadStatus::ERROR);
+        setStatus(DownloadStatus::ERROR);
         return false;
     }
 
-    // Get content length
     curl_off_t contentLength = 0;
     curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &contentLength);
     totalSize_ = static_cast<uint64_t>(contentLength);
 
-    // Check Accept-Ranges support
-    char* acceptRanges = nullptr;
-    curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &acceptRanges);
+    supportsRange_ = (totalSize_ >= MIN_MULTITHREAD_SIZE);
 
-    // Try to get Accept-Ranges header
-    supportsRange_ = false;
-    if (totalSize_ > 0) {
-        // We'll check Range support by attempting a range request later
-        // For now, assume support if we got a content length
-        supportsRange_ = (totalSize_ >= MIN_MULTITHREAD_SIZE);
-    }
-
-    // Extract filename from Content-Disposition or URL
     filename_ = FileIO::extractFilename(url, "");
 
     curl_easy_cleanup(curl);
-    status_.store(DownloadStatus::IDLE);
+    setStatus(DownloadStatus::IDLE);
     return true;
 }
 
@@ -91,40 +78,33 @@ bool Downloader::start(const std::string& url, const std::string& outputPath,
     outputPath_ = outputPath;
     threadCount_ = threadCount;
 
-    // Fetch headers first
     if (!fetchHeaders(url)) {
         return false;
     }
 
-    // Determine output file path
     std::string filePath = FileIO::extractFilename(url, outputPath);
     filename_ = fs::path(filePath).filename().string();
 
-    // Check disk space
     uint64_t freeSpace = FileIO::getFreeSpace(outputPath);
     if (totalSize_ > 0 && freeSpace > 0 && totalSize_ > freeSpace) {
-        std::cerr << "[Downloader] Not enough disk space. Need "
-                  << totalSize_ << ", have " << freeSpace << std::endl;
-        status_.store(DownloadStatus::ERROR);
+        std::cerr << "[Downloader] Not enough disk space" << std::endl;
+        setStatus(DownloadStatus::ERROR);
         return false;
     }
 
-    // Pre-allocate file
     if (totalSize_ > 0) {
         if (!FileIO::createEmptyFile(filePath, totalSize_)) {
-            status_.store(DownloadStatus::ERROR);
+            setStatus(DownloadStatus::ERROR);
             return false;
         }
     }
 
-    status_.store(DownloadStatus::DOWNLOADING);
+    setStatus(DownloadStatus::DOWNLOADING);
     running_.store(true);
     startTime_ = std::chrono::steady_clock::now();
     lastSpeedCheck_ = startTime_;
 
-    // Decide: multi-threaded or single-threaded
     if (supportsRange_ && totalSize_ >= MIN_MULTITHREAD_SIZE && threadCount_ > 1) {
-        // Multi-threaded download
         calculateSegments(threadCount_);
 
         for (auto& segment : segments_) {
@@ -132,10 +112,8 @@ bool Downloader::start(const std::string& url, const std::string& outputPath,
                                   fileIO_.get(), filePath);
         }
     } else {
-        // Single-threaded fallback
         segments_.clear();
         segments_.emplace_back(0, 0, totalSize_ > 0 ? totalSize_ - 1 : 0);
-        segments_[0].status.store(SegmentStatus::DOWNLOADING);
 
         threads_.emplace_back(downloadSegment, url_, &segments_[0],
                               fileIO_.get(), filePath);
@@ -147,33 +125,27 @@ bool Downloader::start(const std::string& url, const std::string& outputPath,
 void Downloader::pause() {
     if (!isActive()) return;
 
-    status_.store(DownloadStatus::PAUSED);
+    setStatus(DownloadStatus::PAUSED);
     running_.store(false);
 
-    // Signal all segments to pause
     for (auto& segment : segments_) {
-        segment.status.store(SegmentStatus::PAUSED);
+        segment.setStatus(SegmentStatus::PAUSED);
     }
 
-    // Wait for threads to finish
     joinThreads();
-
-    // Save state for resume
-    // (StateManager integration in Phase 3)
 }
 
 void Downloader::resume() {
-    if (status_.load() != DownloadStatus::PAUSED) return;
+    if (getStatus() != DownloadStatus::PAUSED) return;
 
-    status_.store(DownloadStatus::DOWNLOADING);
+    setStatus(DownloadStatus::DOWNLOADING);
     running_.store(true);
 
     std::string filePath = FileIO::extractFilename(url_, outputPath_);
 
-    // Restart segments that weren't complete
     for (auto& segment : segments_) {
-        if (segment.status.load() != SegmentStatus::COMPLETED) {
-            segment.status.store(SegmentStatus::DOWNLOADING);
+        if (segment.getStatus() != SegmentStatus::COMPLETED) {
+            segment.setStatus(SegmentStatus::DOWNLOADING);
             threads_.emplace_back(downloadSegment, url_, &segment,
                                   fileIO_.get(), filePath);
         }
@@ -182,10 +154,10 @@ void Downloader::resume() {
 
 void Downloader::cancel() {
     running_.store(false);
-    status_.store(DownloadStatus::IDLE);
+    setStatus(DownloadStatus::IDLE);
 
     for (auto& segment : segments_) {
-        segment.status.store(SegmentStatus::PAUSED);
+        segment.setStatus(SegmentStatus::PAUSED);
     }
 
     joinThreads();
@@ -199,11 +171,10 @@ DownloadInfo Downloader::getInfo() const {
     info.filename = filename_;
     info.totalSize = totalSize_;
     info.supportsRange = supportsRange_;
-    info.status = status_.load();
+    info.status = getStatus();
     info.speed = getSpeed();
     info.progress = 0;
 
-    // Calculate overall progress
     if (totalSize_ > 0) {
         uint64_t totalDownloaded = 0;
         for (const auto& segment : segments_) {
@@ -212,19 +183,17 @@ DownloadInfo Downloader::getInfo() const {
         info.progress = (static_cast<double>(totalDownloaded) / totalSize_) * 100.0;
     }
 
-    // Check for errors
     for (const auto& segment : segments_) {
-        if (segment.status.load() == SegmentStatus::ERROR) {
+        if (segment.getStatus() == SegmentStatus::ERROR) {
             info.status = DownloadStatus::ERROR;
             info.errorMessage = segment.errorMessage;
             break;
         }
     }
 
-    // Check if all complete
     bool allComplete = true;
     for (const auto& segment : segments_) {
-        if (segment.status.load() != SegmentStatus::COMPLETED) {
+        if (segment.getStatus() != SegmentStatus::COMPLETED) {
             allComplete = false;
             break;
         }
@@ -241,7 +210,7 @@ const std::vector<SegmentWorker>& Downloader::getSegments() const {
 }
 
 bool Downloader::isActive() const {
-    auto s = status_.load();
+    auto s = getStatus();
     return s == DownloadStatus::DOWNLOADING || s == DownloadStatus::FETCHING_HEADERS;
 }
 
@@ -250,7 +219,7 @@ double Downloader::getSpeed() const {
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         now - lastSpeedCheck_).count();
 
-    if (elapsed < 100) return 0; // Too soon
+    if (elapsed < 100) return 0;
 
     uint64_t currentBytes = 0;
     for (const auto& segment : segments_) {
@@ -260,7 +229,6 @@ double Downloader::getSpeed() const {
     uint64_t bytesDelta = currentBytes - lastBytesDownloaded_.load();
     double speed = static_cast<double>(bytesDelta) / (elapsed / 1000.0);
 
-    // Update for next check (mutable via const_cast for atomic)
     const_cast<std::atomic<uint64_t>&>(lastBytesDownloaded_).store(currentBytes);
     const_cast<std::chrono::steady_clock::time_point&>(lastSpeedCheck_) = now;
 
