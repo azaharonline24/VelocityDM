@@ -1,0 +1,48 @@
+name: Build (CI)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install libcurl via vcpkg
+        run: |
+          vcpkg install curl:x64-windows-static
+
+      - name: Download nlohmann/json
+        run: |
+          curl -sL "https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp" -o vendor/json.hpp
+
+      - name: Configure & Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+                -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+                -DVCPKG_TARGET_TRIPLET=x64-windows-static
+          cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      - name: Verify binaries
+        run: |
+          if (Test-Path "build/bin/Release/VelocityDM.exe") {
+            Write-Host "✅ VelocityDM.exe built successfully"
+          } else {
+            Write-Host "❌ Build failed"
+            exit 1
+          }
+          if (Test-Path "build/bin/Release/VelocityDMHost.exe") {
+            Write-Host "✅ VelocityDMHost.exe built successfully"
+          }

@@ -1,0 +1,65 @@
+name: Build Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install libcurl via vcpkg
+        run: |
+          vcpkg install curl:x64-windows-static
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+
+      - name: Download nlohmann/json
+        run: |
+          curl -sL "https://raw.githubusercontent.com/nlohmann/json/develop/single_include/nlohmann/json.hpp" -o vendor/json.hpp
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+                -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake" `
+                -DVCPKG_TARGET_TRIPLET=x64-windows-static
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      - name: Package
+        run: |
+          mkdir release
+          copy build\bin\Release\VelocityDM.exe release\
+          copy build\bin\Release\VelocityDMHost.exe release\
+          copy extension\manifest.json release\extension-manifest.json
+          copy extension\background.js release\
+          copy extension\popup.html release\
+          copy extension\popup.js release\
+          copy src\browser_bridge\manifest.json release\native-host-manifest.json
+          copy README.md release\
+          copy LICENSE release\
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VelocityDM-Windows-x64
+          path: release/
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
