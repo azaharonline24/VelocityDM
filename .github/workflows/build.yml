@@ -23,7 +23,6 @@ jobs:
       - name: Install libcurl via vcpkg
         run: |
           vcpkg install curl:x64-windows-static
-          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
 
       - name: Download nlohmann/json
         run: |
@@ -32,7 +31,7 @@ jobs:
       - name: Configure CMake
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-                -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake" `
+                -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
                 -DVCPKG_TARGET_TRIPLET=x64-windows-static
 
       - name: Build
