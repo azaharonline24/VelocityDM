@@ -12,19 +12,20 @@
 
 #pragma comment(lib, "comctl32.lib")
 
-namespace VelocityDM::UI {
+// Control IDs (must be #define for MSVC CreateWindow)
+#define IDC_LISTVIEW    1001
+#define IDC_ADD_BTN     1002
+#define IDC_PAUSE_BTN   1003
+#define IDC_RESUME_BTN  1004
+#define IDC_DELETE_BTN  1005
+#define IDC_TIMER       2001
 
 // Window dimensions
-constexpr int WINDOW_WIDTH = 900;
-constexpr int WINDOW_HEIGHT = 600;
+#define WINDOW_WIDTH  900
+#define WINDOW_HEIGHT 600
 
-// Control IDs
-constexpr int IDC_LISTVIEW = 1001;
-constexpr int IDC_ADD_BTN = 1002;
-constexpr int IDC_PAUSE_BTN = 1003;
-constexpr int IDC_RESUME_BTN = 1004;
-constexpr int IDC_DELETE_BTN = 1005;
-constexpr int IDC_TIMER = 2001;
+namespace VelocityDM {
+namespace UI {
 
 // ListView columns
 enum Column {
@@ -103,4 +104,5 @@ private:
 // Entry point for GUI mode
 int runMainWindow();
 
-} // namespace VelocityDM::UI
+} // namespace UI
+} // namespace VelocityDM

@@ -9,7 +9,7 @@
 #include <string>
 #include <cstring>
 #include <windows.h>
-#include <nlohmann/json.hpp>
+#include "json.hpp"
 
 using json = nlohmann::json;
 

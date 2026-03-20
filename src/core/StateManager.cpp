@@ -9,7 +9,7 @@
 #include <filesystem>
 
 // nlohmann/json single header
-#include <nlohmann/json.hpp>
+#include "json.hpp"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
