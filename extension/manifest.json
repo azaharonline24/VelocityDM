@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "VelocityDM Integration",
+  "version": "1.0.0",
+  "description": "Intercept downloads and send to VelocityDM",
+  "permissions": [
+    "downloads",
+    "nativeMessaging"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "VelocityDM"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

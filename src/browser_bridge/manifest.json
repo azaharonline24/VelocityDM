@@ -1,0 +1,9 @@
+{
+  "name": "com.velocitydm",
+  "description": "VelocityDM Native Messaging Host",
+  "path": "VelocityDMHost.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://abcdefghijklmnopqrstuvwxyzabcdef/"
+  ]
+}
