@@ -5,11 +5,16 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <thread>
+#include <chrono>
+#include <iomanip>
 #include "core/Downloader.h"
+#include "core/FileIO.h"
 #include "core/StateManager.h"
 #include "ui/MainWindow.h"
 
 namespace fs = std::filesystem;
+using namespace VelocityDM;
 
 void printUsage() {
     std::cout << "VelocityDM - High-Performance Download Manager\n"
@@ -22,7 +27,6 @@ void printUsage() {
               << "  --resume      Resume paused downloads in output path\n"
               << "\nExamples:\n"
               << "  VelocityDM.exe https://example.com/file.zip C:\\Downloads\\\n"
-              << "  VelocityDM.exe --threads 16 https://example.com/file.zip C:\\Downloads\\\n"
               << std::endl;
 }
 
@@ -58,14 +62,13 @@ int runCLI(int argc, char* argv[]) {
     }
 
     // Create downloader
-    VelocityDM::Downloader downloader;
+    Downloader downloader;
 
     // Check for resume state
     if (resumeMode) {
         std::string filename = FileIO::extractFilename(url, outputPath);
-        if (VelocityDM::StateManager::hasState(outputPath, filename)) {
+        if (StateManager::hasState(outputPath, filename)) {
             std::cout << "[Main] Resuming download: " << filename << std::endl;
-            // TODO: Load state and resume
         }
     }
 
@@ -85,11 +88,11 @@ int runCLI(int argc, char* argv[]) {
         // Format speed
         std::string speedStr;
         if (info.speed > 1024 * 1024) {
-            speedStr = std::to_string(static_cast<int>(info.speed / 1024 / 1024)) + " MB/s";
+            speedStr = std::to_string((int)(info.speed / 1024 / 1024)) + " MB/s";
         } else if (info.speed > 1024) {
-            speedStr = std::to_string(static_cast<int>(info.speed / 1024)) + " KB/s";
+            speedStr = std::to_string((int)(info.speed / 1024)) + " KB/s";
         } else {
-            speedStr = std::to_string(static_cast<int>(info.speed)) + " B/s";
+            speedStr = std::to_string((int)info.speed) + " B/s";
         }
 
         // Print progress
@@ -102,7 +105,7 @@ int runCLI(int argc, char* argv[]) {
         // Check if all segments complete
         bool allDone = true;
         for (const auto& seg : downloader.getSegments()) {
-            if (seg.status.load() != VelocityDM::SegmentStatus::COMPLETED) {
+            if (seg.status.load() != SegmentStatus::COMPLETED) {
                 allDone = false;
                 break;
             }
@@ -114,7 +117,7 @@ int runCLI(int argc, char* argv[]) {
 
     // Clean up state file
     std::string filename = FileIO::extractFilename(url, outputPath);
-    VelocityDM::StateManager::deleteState(outputPath, filename);
+    StateManager::deleteState(outputPath, filename);
 
     return 0;
 }
@@ -123,14 +126,14 @@ int main(int argc, char* argv[]) {
     // Check for GUI mode
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--gui") {
-            return VelocityDM::UI::runMainWindow();
+            return UI::runMainWindow();
         }
     }
 
-    // If no arguments or --gui not found, try CLI mode
+    // If no arguments, show usage
     if (argc < 2) {
         // Check for saved states to resume
-        auto states = VelocityDM::StateManager::listStates(".");
+        auto states = StateManager::listStates(".");
         if (!states.empty()) {
             std::cout << "[Main] Found " << states.size()
                       << " paused download(s). Use --resume to continue." << std::endl;

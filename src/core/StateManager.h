@@ -9,6 +9,13 @@
 
 namespace VelocityDM {
 
+struct SegmentState {
+    int id;
+    uint64_t startByte;
+    uint64_t endByte;
+    uint64_t downloaded;
+};
+
 struct DownloadState {
     std::string url;
     std::string filename;
@@ -16,13 +23,6 @@ struct DownloadState {
     uint64_t totalSize;
     bool supportsRange;
     std::vector<SegmentState> segments;
-};
-
-struct SegmentState {
-    int id;
-    uint64_t startByte;
-    uint64_t endByte;
-    uint64_t downloaded;
 };
 
 class StateManager {
